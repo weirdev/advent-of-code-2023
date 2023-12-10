@@ -284,6 +284,100 @@ fn process_maps(filename: &str, mp: MapProcessing) -> u64 {
     }
 }
 
+fn process_maps_part2(filename: &str) -> u64 {
+    let mut blocks = read_lines(filename)
+        .unwrap()
+        .filter_map(Result::ok) // filter out possible errors
+        .group_by(|l| l.trim().is_empty());
+    let mut blocks_iter = blocks
+        .into_iter()
+        .filter_map(|(e, b)| if e { None } else { Some(b) });
+
+    let mut seeds_block = preprocess_block(blocks_iter.next().unwrap());
+
+    let mut seeds_line = seeds_block.next().unwrap();
+    let seeds_line = preprocess_line(&seeds_line);
+    let seed_nums = seeds_line
+        .split_at(seeds_line.iter().position(|&c| c == b':').unwrap())
+        .1;
+    let seed_nums = &seed_nums[1..];
+    let mut seeds = seed_nums
+        .split(|&c| c == b' ')
+        .filter(|s| !s.is_empty())
+        .map(|seed| {
+            let s = unsafe { std::str::from_utf8_unchecked(seed) }.parse::<u64>();
+            if let Err(_) = s {
+                println!("{}", unsafe { std::str::from_utf8_unchecked(seed) });
+                panic!("Invalid seed number");
+            } else {
+                s.unwrap()
+            }
+        });
+    let mut seed_mappings = vec![];
+    while let Some(seed_start) = seeds.next() {
+        seed_mappings.push(Mapping {
+            src_start: seed_start,
+            dst_start: seed_start,
+            count: NumOrInf::Finite(seeds.next().unwrap()),
+        });
+    }
+    seed_mappings.sort_by(|&a, &b| a.src_start.cmp(&b.src_start));
+
+    let mut mappings_red: Option<Vec<Mapping>> = None;
+    for map_block in blocks_iter {
+        let mut map_block = preprocess_block(map_block);
+        let mut _map_name_line = map_block.next().unwrap();
+
+        let mut new_mappings = Vec::new();
+        for map_line in map_block {
+            let map_line = preprocess_line(&map_line);
+            let (dst_start, src_start, count): (u64, u64, u64) = map_line
+                .split(|&c| c == b' ')
+                .filter(|s| !s.is_empty())
+                .map(|n| {
+                    unsafe { std::str::from_utf8_unchecked(n) }
+                        .parse::<u64>()
+                        .unwrap()
+                })
+                .collect_tuple()
+                .unwrap();
+
+            new_mappings.push(Mapping {
+                src_start,
+                dst_start,
+                count: NumOrInf::Finite(count),
+            });
+        }
+        new_mappings = with_implicit_mappings(new_mappings);
+
+        if let Some(existing_mappings) = mappings_red {
+            // mappings.sort
+            let merged = merge_mappings(&existing_mappings, &new_mappings);
+            mappings_red = Some(with_implicit_mappings(merged));
+        } else {
+            // mappings.sort
+            mappings_red = Some(new_mappings);
+        }
+    }
+
+    let mut mappings = mappings_red.unwrap();
+    mappings = with_implicit_mappings(mappings);
+
+    let mut least_dst = None;
+    let merged = merge_mappings(&seed_mappings, &mappings);
+    for &mapping in &merged {
+        if let Some(least) = least_dst {
+            if mapping.dst_start < least {
+                least_dst = Some(mapping.dst_start);
+            }
+        } else {
+            least_dst = Some(mapping.dst_start);
+        }
+    }
+
+    least_dst.unwrap()
+}
+
 fn with_implicit_mappings(mut mappings: Vec<Mapping>) -> Vec<Mapping> {
     mappings.sort_by(|&a, &b| a.src_start.cmp(&b.src_start));
 
@@ -361,4 +455,5 @@ fn preprocess_line(line: &String) -> &[u8] {
 
 fn main() {
     println!("Part 1: {}", process_maps("input", MapProcessing::MapMerge));
+    println!("Part 2: {}", process_maps_part2("input"));
 }
