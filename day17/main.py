@@ -28,7 +28,7 @@ class DerivedNode:
         return hash(self) < hash(other)
 
 
-def dj(graph: List[str], start: (int, int), goal: (int, int)):
+def dj(graph: List[str], start: (int, int), goal: (int, int), min_straight_steps: int, max_straight_steps: int):
     def enqueue(heat_loss: int, node: DerivedNode, queue):
         heapq.heappush(queue, (heat_loss, node))
 
@@ -37,7 +37,7 @@ def dj(graph: List[str], start: (int, int), goal: (int, int)):
     visited: Set[DerivedNode] = set()
     while len(queue) > 0:
         heat_loss, dn = heapq.heappop(queue)
-        if dn.pos == goal:
+        if dn.pos == goal and dn.straight_steps >= min_straight_steps - 1:\
             return heat_loss, dn.path
 
         if dn in visited:
@@ -56,7 +56,19 @@ def dj(graph: List[str], start: (int, int), goal: (int, int)):
         # we are already on the first step of it, plotting the second.
         # So the first step has straight_steps=0, the second one is 1, etc.
         # So to check >=n steps, check straight_steps >=n-1
-        if dn.straight_steps >= 2:
+
+        if dn.straight_steps < min_straight_steps - 1:
+            if straight is not None:
+                # Must go straight
+                axis = 0 if straight[0] == 0 else 1
+                if axis == 0:
+                    forbidden_dirs.add((1, 0))
+                    forbidden_dirs.add((-1, 0))
+                else:
+                    forbidden_dirs.add((0, 1))
+                    forbidden_dirs.add((0, -1))
+        elif dn.straight_steps >= max_straight_steps - 1:
+            # Must not go straight
             forbidden_dirs.add(straight)
 
         for axis in 0, 1:
@@ -87,7 +99,16 @@ def part1(filename: str):
     graph = read_grid(filename)
     start = (0, 0)
     end = (len(graph[0])-1, len(graph)-1)
-    hl, path = dj(graph, start, end)
+    hl, path = dj(graph, start, end, 0, 3)
+    # print(path_str(graph, path))
+    return hl
+
+
+def part2(filename: str):
+    graph = read_grid(filename)
+    start = (0, 0)
+    end = (len(graph[0])-1, len(graph)-1)
+    hl, path = dj(graph, start, end, 4, 10)
     # print(path_str(graph, path))
     return hl
 
@@ -100,3 +121,5 @@ def path_str(grid: List[str], path: List[Tuple[int, int]]):
 if __name__ == '__main__':
     p1 = part1('input')
     print(f'Part 1: {p1}')
+    p2 = part2('input')
+    print(f'Part 2: {p2}')
